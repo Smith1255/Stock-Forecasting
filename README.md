@@ -1,4 +1,21 @@
 # Stock-Forecasting
+
+Forked from https://github.com/ayushjain1594/Stock-Forecasting.
+
+_**This is meant as a hobby project and is not intended to be used for trading. It's predictions should not be interpreted as financial advice, nor are the predictions in any way guaranteed to model future performance of the underlying assets. Neither I nor the original contributers are offering financial advice and are not liable for unintended use of this application.**_
+
+The goal of this project is to generalize the original program to be more multipurpose and user friendly. 
+The main changes are:
+* Fetching data from the Alpha Vantage API instead of static csv data.
+* Opening it to forex data.
+* Breaking up the original project logic into easy to understand components (service modules, functions, etc).
+* Adding the ability for the user to fine tune results (outputted time intervals, feature types, plotted data, etc).
+* Building the project as a self contained executable.
+
+
+
+# Original Repository Readme
+
 Hidden Markov Model (HMM) based stock forecasting.
 
 NOTE: *Refer Final_Report.pdf for full documentation*
