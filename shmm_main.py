@@ -8,15 +8,6 @@ import concurrent.futures
 
 import stock_info
 
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-# STOCKS=['apple.csv','cmcst.csv','google.csv','qcom.csv']
-#NUM_STATES=12
-#FILE_NAME='HistoricalQuotes.csv'
-#TRAIN_CHUNK_SIZE=100
-
-#dirichlet_params = np.array([1., 20., 20., 20.])
-#dirichlet_params = np.random.randint(1,50,NUM_STATES)
 
 likelihood_vect = np.empty([0,1])
 aic_vect = np.empty([0,1])
@@ -31,10 +22,6 @@ def calc_mape(predicted_data, true_data):
 
 
 def predict_prices(dataset, NUM_TEST=100, K = 50, NUM_ITERS=10000):
-    # stock = 'andrew.csv'
-    # dataset = np.genfromtxt(stock, delimiter=',')
-    # print("PASSED IN", dataset)
-    # print("REAL", dataset1)
     model, opt_states = define_model(dataset=dataset, NUM_TEST=NUM_TEST, NUM_ITERS=NUM_ITERS)
 
     predicted_stock_data = train_model(dataset=dataset, model=model, opt_states=opt_states, NUM_TEST=NUM_TEST, NUM_ITERS=NUM_ITERS, K=K)
@@ -48,7 +35,6 @@ def define_model(dataset, NUM_TEST, NUM_ITERS):
     for states in STATE_SPACE:
         num_params = states**2 + states
         dirichlet_params_states = np.random.randint(1,50,states)
-        #model = hmm.GaussianHMM(n_components=states, covariance_type='full', startprob_prior=dirichlet_params_states, transmat_prior=dirichlet_params_states, tol=0.0001, n_iter=NUM_ITERS, init_params='mc')
         model = hmm.GaussianHMM(n_components=states, covariance_type='full', tol=0.0001, n_iter=NUM_ITERS)
         model.fit(dataset[NUM_TEST:,:])
         if model.monitor_.iter == NUM_ITERS:
@@ -69,7 +55,7 @@ def train_model(dataset, model, opt_states, NUM_TEST, K, NUM_ITERS):
             train_dataset = dataset[idx + 1:,:]
             test_data = dataset[idx,:]; 
             num_examples = train_dataset.shape[0]
-            #model = hmm.GaussianHMM(n_components=opt_states, covariance_type='full', startprob_prior=dirichlet_params, transmat_prior=dirichlet_params, tol=0.0001, n_iter=NUM_ITERS, init_params='mc')
+            
             if idx == NUM_TEST - 1:
                 model = hmm.GaussianHMM(n_components=opt_states, covariance_type='full', tol=0.0001, n_iter=NUM_ITERS, init_params='stmc')
             else:
@@ -90,8 +76,7 @@ def train_model(dataset, model, opt_states, NUM_TEST, K, NUM_ITERS):
             if model.monitor_.iter == NUM_ITERS:
                 print('Increase number of iterations')
                 sys.exit(1)
-            #print('Model score : ', model.score(dataset))
-            #print('Dirichlet parameters : ',dirichlet_params)
+            print('Model score : ', model.score(dataset))
 
             iters = 1;
             past_likelihood = []
