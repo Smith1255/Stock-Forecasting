@@ -5,6 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from hmmlearn import hmm
 import concurrent.futures
+import multiprocessing
+import argparse
 
 import stock_info
 
@@ -21,23 +23,23 @@ def calc_mape(predicted_data, true_data):
     return np.divide(np.sum(np.divide(np.absolute(predicted_data - true_data), true_data), 0), true_data.shape[0])
 
 
-def predict_prices(dataset, NUM_TEST=100, K = 50, NUM_ITERS=10000):
-    model, opt_states = define_model(dataset=dataset, NUM_TEST=NUM_TEST, NUM_ITERS=NUM_ITERS)
-
-    predicted_stock_data = train_model(dataset=dataset, model=model, opt_states=opt_states, NUM_TEST=NUM_TEST, NUM_ITERS=NUM_ITERS, K=K)
-
+def predict_prices(dataset, num_test=100, K = 50, num_iters=10000):
+    model, opt_states = define_model(dataset=dataset, num_test=num_test, num_iters=num_iters)
+    print("Finished defining the model")
+    predicted_stock_data = train_model(dataset=dataset, model=model, opt_states=opt_states, num_test=num_test, num_iters=num_iters, K=K)
+    print("Finished training the model")
     return predicted_stock_data
 
-def define_model(dataset, NUM_TEST, NUM_ITERS):
+def define_model(dataset, num_test, num_iters):
     likelihood_vect = np.empty([0,1])
     aic_vect = np.empty([0,1])
     bic_vect = np.empty([0,1])
     for states in STATE_SPACE:
         num_params = states**2 + states
         dirichlet_params_states = np.random.randint(1,50,states)
-        model = hmm.GaussianHMM(n_components=states, covariance_type='full', tol=0.0001, n_iter=NUM_ITERS)
-        model.fit(dataset[NUM_TEST:,:])
-        if model.monitor_.iter == NUM_ITERS:
+        model = hmm.GaussianHMM(n_components=states, covariance_type='full', tol=0.0001, n_iter=num_iters)
+        model.fit(dataset[num_test:,:])
+        if model.monitor_.iter == num_iters:
             print('Increase number of iterations')
             sys.exit(1)
         likelihood_vect = np.vstack((likelihood_vect, model.score(dataset)))
@@ -45,22 +47,21 @@ def define_model(dataset, NUM_TEST, NUM_ITERS):
         bic_vect = np.vstack((bic_vect, -2 * model.score(dataset) +  num_params * np.log(dataset.shape[0])))
     
     opt_states = np.argmin(bic_vect) + 2
-    print('\nOptimum number of states are {}'.format(opt_states))
     return (model, opt_states)
 
-def train_model(dataset, model, opt_states, NUM_TEST, K, NUM_ITERS):
+def train_model(dataset, model, opt_states, num_test, K, num_iters):
     predicted_stock_data = np.empty([0,dataset.shape[1]])
 
-    for idx in reversed(range(NUM_TEST)):
+    for idx in reversed(range(num_test)):
             train_dataset = dataset[idx + 1:,:]
             test_data = dataset[idx,:]; 
             num_examples = train_dataset.shape[0]
             
-            if idx == NUM_TEST - 1:
-                model = hmm.GaussianHMM(n_components=opt_states, covariance_type='full', tol=0.0001, n_iter=NUM_ITERS, init_params='stmc')
+            if idx == num_test - 1:
+                model = hmm.GaussianHMM(n_components=opt_states, covariance_type='full', tol=0.0001, n_iter=num_iters, init_params='stmc')
             else:
                 # Retune the model by using the HMM paramters from the previous iterations as the prior
-                model = hmm.GaussianHMM(n_components=opt_states, covariance_type='full', tol=0.0001, n_iter=NUM_ITERS, init_params='')
+                model = hmm.GaussianHMM(n_components=opt_states, covariance_type='full', tol=0.0001, n_iter=num_iters, init_params='')
                 model.transmat_ = transmat_retune_prior 
                 model.startprob_ = startprob_retune_prior
                 model.means_ = means_retune_prior
@@ -73,10 +74,9 @@ def train_model(dataset, model, opt_states, NUM_TEST, K, NUM_ITERS):
             means_retune_prior = model.means_
             covars_retune_prior = model.covars_
 
-            if model.monitor_.iter == NUM_ITERS:
+            if model.monitor_.iter == num_iters:
                 print('Increase number of iterations')
                 sys.exit(1)
-            print('Model score : ', model.score(dataset))
 
             iters = 1;
             past_likelihood = []
@@ -90,9 +90,9 @@ def train_model(dataset, model, opt_states, NUM_TEST, K, NUM_ITERS):
 
     return predicted_stock_data
 
-def plot_data(predicted_stock_data, dataset, symbol, FOR_EACH_LABEL=False):
+def plot_data(predicted_stock_data, dataset, symbol, plot_all_features=False):
     labels = ['Close','Open','High','Low']
-    if FOR_EACH_LABEL:
+    if plot_all_features:
         for i in range(4):
             plt.figure()
             plt.plot(range(100), predicted_stock_data[:,i],'k-', label = 'Predicted '+labels[i]+' price');
@@ -118,33 +118,80 @@ def plot_data(predicted_stock_data, dataset, symbol, FOR_EACH_LABEL=False):
 
     plt.show()
 
-def animated_loading():
-    chars = "/—\|" 
-    for char in chars:
-        sys.stdout.write('\r'+'loading...'+char)
-        time.sleep(.1)
-        sys.stdout.flush() 
+def get_arg_parser():
+    args = argparse.ArgumentParser(description='Analyzes a given stock and its price history to generate predictions for future performance')
+
+    args.add_argument('Symbol',
+                           metavar='symbol',
+                           type=str,
+                           help='the stock symbol to analyze')
+    # args.add_argument('Symbol',
+    #                        metavar='symbol',
+    #                        type=str,
+    #                        help='the stock symbol to analyze')
+    args.add_argument('-s',
+                       '--save',
+                       action='store_true',
+                       help='save the predicted prices to csv')
+    args.add_argument('-np',
+                       '--no_plot',
+                       action='store_true',
+                       help='do not plot the predicted prices')
+    args.add_argument('-pa',
+                       '--plot_all',
+                       action='store_true',
+                       help='plot each of the price features individually')
+    return args
 
 def main():
-    symbol = "tsla"
-    dataset = stock_info.get_stock_info(symbol=symbol).values
+    args = get_arg_parser().parse_args()
+    symbol = args.Symbol
+    print("Retrieving data for", symbol)
+    dataset = np.genfromtxt('apple.csv', delimiter=',')
+    # try:
+    #     dataset = stock_info.get_stock_info(symbol=symbol).values
+    # except ValueError as e:
+    #     print ("Something went wrong while retrieving the price data.")
+    #     print ("Error was:", str(e))
+    #     print("Exiting.")
+    #     exit()
 
-    # dataset = np.genfromtxt('apple.csv', delimiter=',')
-    # result =np.genfromtxt('apple.csv_forecast.csv', delimiter=',')
-    # data.to_csv('andrew.csv', sep=',', header=False, index=False)
-    # plot_data(predicted_stock_data=result, dataset=dataset, symbol=symbol)
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        future = executor.submit(predict_prices, dataset)
+    print("Successfully retrieved data for", symbol)
+    predicted_data = predict_prices(dataset)
 
-        while(future.running()):
-            animated_loading()
+    if (args.save):
+        filename = '{}_forecast.csv'.format(symbol)
+        print("Saving to", filename)
+        np.savetxt(filename, predicted_data, delimiter=',', fmt='%.2f')
 
-        np.savetxt('{}_forecast.csv'.format(symbol),future.result(),delimiter=',',fmt='%.2f')
+    mape = calc_mape(predicted_data, np.flipud(dataset[range(100),:]))
+    print('\nMAPE for the stock {} is '.format(symbol), mape)
+        
+    if (not args.no_plot):
+        plot_data(predicted_stock_data=predicted_data, dataset=dataset, symbol=symbol, plot_all_features=args.plot_all)
 
-        mape = calc_mape(future.result(), np.flipud(dataset[range(100),:]))
-        print('\nMAPE for the stock {} is '.format(symbol),mape)
+    # result_queue = multiprocessing.Queue()
+    # p1 = multiprocessing.Process(target=predict_prices, args=(dataset, result_queue)) 
+    # p1.start()
+    # while (p1.is_alive()):
+    #     animated_loading()
+    # p1.join()
+    # with concurrent.futures.ThreadPoolExecutor() as executor:
+    #     future = executor.submit(predict_prices, dataset)
+
+    #     while(future.running()):
+    #         animated_loading()
+
+    #     if (args.save and future.done()):
+    #         filename = '{}_forecast.csv'.format(symbol)
+    #         print("\nSaving to", filename)
+    #         np.savetxt(filename, future.result(), delimiter=',', fmt='%.2f')
+
+    #     mape = calc_mape(future.result(), np.flipud(dataset[range(100),:]))
+    #     print('\nMAPE for the stock {} is '.format(symbol), mape)
             
-        plot_data(predicted_stock_data=future.result(), dataset=dataset, symbol=symbol)
+    #     if (not args.no_plot):
+    #         plot_data(predicted_stock_data=future.result(), dataset=dataset, symbol=symbol, plot_all_features=args.plot_all)
 
 if __name__ == "__main__":
     main()

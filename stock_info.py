@@ -28,14 +28,12 @@ def get_stock_info(symbol, api_key="0NWT0509VXGMKUSE"):
 	try:
   		ts = TimeSeries(key=api_key, output_format='pandas')
 	except:
-  		print("Invalid API key, exiting.")
-  		exit()
+		raise ValueError("Invalid API key.")
 
 	try:
   		data, metadata = ts.get_daily(symbol=symbol, outputsize="full")
 	except:
-  		print("Invalid stock symbol, exiting")
-  		exit()
+  		raise ValueError("Invalid stock symbol.")
 
 	data.reset_index(inplace=True)
 	del data['5. volume']
