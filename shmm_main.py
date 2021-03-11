@@ -35,8 +35,7 @@ def define_model(dataset, num_test, num_iters):
         num_params = states**2 + states
         dirichlet_params_states = np.random.randint(1,50,states)
         model = hmm.GaussianHMM(n_components=states, covariance_type='full', tol=0.0001, n_iter=num_iters)
-        # model.fit(dataset[num_test:,:])
-        model.fit(dataset)
+        model.fit(dataset[num_test:,:])
         if model.monitor_.iter == num_iters:
             print('Increase number of iterations')
             sys.exit(1)
@@ -49,9 +48,8 @@ def define_model(dataset, num_test, num_iters):
 
 def train_model(dataset, model, opt_states, num_test, K, num_iters):
     predicted_stock_data = np.empty([0,dataset.shape[1]])
+    train_dataset = dataset[100:,:]
     for idx in reversed(range(num_test)):
-            train_dataset = dataset[idx + 1:,:]
-            test_data = dataset[idx,:]; 
             num_examples = train_dataset.shape[0]
             
             if idx == num_test - 1:
@@ -83,8 +81,11 @@ def train_model(dataset, model, opt_states, num_test, K, num_iters):
                 iters = iters + 1
             likelihood_diff_idx = np.argmin(np.absolute(past_likelihood - curr_likelihood))
             predicted_change = train_dataset[likelihood_diff_idx,:] - train_dataset[likelihood_diff_idx + 1,:]
-            predicted_stock_data = np.vstack((predicted_stock_data, dataset[idx + 1,:] + predicted_change))
+            new_data = train_dataset[0,:] + predicted_change
+            train_dataset = np.insert(train_dataset, 0, new_data, axis=0)
 
+            predicted_stock_data = np.vstack((predicted_stock_data, new_data))
+    
     return predicted_stock_data
 
 def plot_data(predicted_stock_data, dataset, ticker, plot_all_features=False):
